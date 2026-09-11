@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>トーナメント表 – 投影用</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/display.css" />
+</head>
+<body>
+  <!-- 投影コントロール（マウスホバーで表示） -->
+  <div id="display-controls">
+    <div class="ctrl-inner">
+      <span class="ctrl-label"><i class="fas fa-tv"></i> 投影モード</span>
+      <div class="ctrl-actions">
+        <button id="btn-zoom-out" class="ctrl-btn" title="縮小"><i class="fas fa-search-minus"></i></button>
+        <span id="zoom-label">100%</span>
+        <button id="btn-zoom-in" class="ctrl-btn" title="拡大"><i class="fas fa-search-plus"></i></button>
+        <button id="btn-zoom-fit" class="ctrl-btn" title="画面に合わせる"><i class="fas fa-expand"></i></button>
+        <button id="btn-fullscreen" class="ctrl-btn" title="フルスクリーン"><i class="fas fa-expand-arrows-alt"></i></button>
+        <a href="index.html" class="ctrl-btn" title="管理画面へ"><i class="fas fa-cog"></i></a>
+      </div>
+    </div>
+  </div>
+
+  <!-- メインコンテンツ -->
+  <main id="display-main">
+    <!-- 待機画面 -->
+    <div id="waiting-screen">
+      <div class="waiting-inner">
+        <div class="waiting-icon">
+          <i class="fas fa-trophy"></i>
+          <div class="pulse-ring"></div>
+          <div class="pulse-ring delay1"></div>
+          <div class="pulse-ring delay2"></div>
+        </div>
+        <h1 class="waiting-title">トーナメント表</h1>
+        <p class="waiting-sub">管理画面でトーナメントを生成してください</p>
+        <a href="index.html" class="waiting-link">
+          <i class="fas fa-external-link-alt"></i> 管理画面を開く
+        </a>
+      </div>
+    </div>
+
+    <!-- トーナメント表示エリア -->
+    <div id="tournament-display" style="display:none">
+      <header id="display-header">
+        <div class="display-deco-line"></div>
+        <h1 id="display-title"></h1>
+        <p id="display-meta"></p>
+        <div class="display-deco-line"></div>
+      </header>
+
+      <div id="svg-outer-wrap">
+        <div id="svg-scale-wrap">
+          <svg id="display-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 更新アニメーション -->
+  <div id="update-flash" class="update-flash"></div>
+
+  <script src="js/tournament.js"></script>
+  <script src="js/draw.js"></script>
+  <script src="js/display.js"></script>
+</body>
+</html>

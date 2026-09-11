@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>トーナメント表 管理画面</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+</head>
+<body>
+  <!-- ヘッダー -->
+  <header id="app-header">
+    <div class="header-inner">
+      <div class="logo">
+        <i class="fas fa-trophy"></i>
+        <span>トーナメント マネージャー</span>
+      </div>
+      <nav class="header-actions">
+        <a href="display.html" target="_blank" class="btn btn-secondary btn-sm">
+          <i class="fas fa-tv"></i> 投影画面を開く
+        </a>
+        <button id="btn-reset" class="btn btn-danger btn-sm">
+          <i class="fas fa-redo"></i> リセット
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="app-main">
+    <!-- 左パネル：設定 -->
+    <aside id="settings-panel">
+      <section class="panel-section">
+        <h2 class="section-title"><i class="fas fa-pen"></i> 大会設定</h2>
+
+        <div class="form-group">
+          <label for="input-title">大会タイトル</label>
+          <input type="text" id="input-title" placeholder="例：第1回 社内eスポーツ大会" maxlength="40" />
+        </div>
+
+        <div class="form-group">
+          <label for="input-num">参加人数 <span class="badge">2 〜 64</span></label>
+          <div class="num-input-wrap">
+            <button class="num-btn" id="num-minus"><i class="fas fa-minus"></i></button>
+            <input type="number" id="input-num" min="2" max="64" value="8" />
+            <button class="num-btn" id="num-plus"><i class="fas fa-plus"></i></button>
+          </div>
+        </div>
+
+        <button id="btn-generate" class="btn btn-primary btn-full">
+          <i class="fas fa-magic"></i> トーナメント表を生成
+        </button>
+      </section>
+
+      <!-- 参加者名入力 -->
+      <section class="panel-section" id="players-section" style="display:none">
+        <h2 class="section-title"><i class="fas fa-users"></i> 参加者名</h2>
+        <div id="player-names-list" class="player-names-list"></div>
+        <button id="btn-apply-names" class="btn btn-accent btn-full mt-8">
+          <i class="fas fa-check"></i> 名前を反映
+        </button>
+      </section>
+
+      <!-- デザイン設定 -->
+      <section class="panel-section" id="design-section" style="display:none">
+        <h2 class="section-title"><i class="fas fa-palette"></i> デザイン</h2>
+
+        <div class="form-group">
+          <label>背景色</label>
+          <div class="color-row">
+            <input type="color" id="color-bg" value="#1a1a2e" />
+            <span class="color-label" id="color-bg-label">#1a1a2e</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>背景の透過度 <span id="opacity-val">100%</span></label>
+          <input type="range" id="range-opacity" min="0" max="100" value="100" class="range-input" />
+        </div>
+
+        <div class="form-group">
+          <label>プレイヤー枠の色</label>
+          <div class="color-row">
+            <input type="color" id="color-slot" value="#16213e" />
+            <span class="color-label" id="color-slot-label">#16213e</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>勝者強調色</label>
+          <div class="color-row">
+            <input type="color" id="color-win" value="#e94560" />
+            <span class="color-label" id="color-win-label">#e94560</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>文字色</label>
+          <div class="color-row">
+            <input type="color" id="color-text" value="#eaeaea" />
+            <span class="color-label" id="color-text-label">#eaeaea</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>BYE文字色</label>
+          <div class="color-row">
+            <input type="color" id="color-bye" value="#444466" />
+            <span class="color-label" id="color-bye-label">#444466</span>
+          </div>
+        </div>
+
+        <div class="form-group divider-top">
+          <label class="checkbox-label">
+            <input type="checkbox" id="toggle-fixed-width" />
+            <span>投影画面の表示幅を固定する</span>
+          </label>
+        </div>
+
+        <div class="form-group" id="fixed-width-group" style="display:none">
+          <label>表示幅 <span id="display-width-val">1200px</span></label>
+          <div class="num-input-wrap">
+            <button class="num-btn" id="width-minus"><i class="fas fa-minus"></i></button>
+            <input type="range" id="range-display-width" min="400" max="3000" step="20" value="1200" class="range-input" />
+            <button class="num-btn" id="width-plus"><i class="fas fa-plus"></i></button>
+          </div>
+          <p class="hint-text">投影画面(display.html)で表示するトーナメント表の幅をピクセル単位で固定します。オフの場合は画面サイズに自動でフィットします。</p>
+        </div>
+
+        <div class="preset-wrap">
+          <span class="preset-label">プリセット:</span>
+          <button class="preset-btn" data-preset="dark" title="ダーク">🌙</button>
+          <button class="preset-btn" data-preset="light" title="ライト">☀️</button>
+          <button class="preset-btn" data-preset="ocean" title="オーシャン">🌊</button>
+          <button class="preset-btn" data-preset="forest" title="フォレスト">🌿</button>
+          <button class="preset-btn" data-preset="fire" title="ファイア">🔥</button>
+          <button class="preset-btn" data-preset="bitblock" title="バトルイベント（黒×赤）">🥊</button>
+        </div>
+      </section>
+
+      <!-- 画像・ロゴ設定 -->
+      <section class="panel-section" id="logos-section" style="display:none">
+        <h2 class="section-title"><i class="fas fa-image"></i> 画像・ロゴ</h2>
+
+        <input type="file" id="logo-file-input" accept="image/*" style="display:none" />
+        <button id="btn-add-logo" class="btn btn-accent btn-full">
+          <i class="fas fa-upload"></i> 画像・ロゴを追加
+        </button>
+        <p class="hint-text">大会のロゴや協賛ロゴなどの画像を追加できます。追加後はブラケット上の画像を<b>ドラッグして自由に移動</b>、右下の <i class="fas fa-arrows-alt-v" style="transform:rotate(45deg)"></i> ハンドルを<b>ドラッグしてリサイズ</b>できます。</p>
+
+        <div id="logo-list" class="logo-list"></div>
+      </section>
+    </aside>
+
+    <!-- 右エリア：トーナメント表 -->
+    <section id="tournament-area">
+      <!-- 空状態 -->
+      <div id="empty-state">
+        <div class="empty-icon"><i class="fas fa-trophy"></i></div>
+        <h2>トーナメント表を生成しましょう</h2>
+        <p>左のパネルで参加人数を入力して<br>「トーナメント表を生成」ボタンを押してください</p>
+      </div>
+
+      <!-- トーナメント表 -->
+      <div id="tournament-wrapper" style="display:none">
+        <div id="tournament-header">
+          <h1 id="tournament-title-display"></h1>
+          <div id="tournament-meta"></div>
+        </div>
+        <div id="svg-scroll-wrap">
+          <svg id="tournament-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div id="match-hint">
+          <i class="fas fa-info-circle"></i>
+          プレイヤー枠をクリックして勝者を選択。再度クリックで解除。
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 勝者選択モーダル -->
+  <div id="winner-modal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+      <h3 class="modal-title"><i class="fas fa-trophy"></i> 勝者を選択</h3>
+      <div id="modal-match-info" class="modal-match-info"></div>
+      <div class="modal-players" id="modal-players"></div>
+      <div class="modal-footer">
+        <button id="modal-cancel" class="btn btn-secondary">キャンセル</button>
+        <button id="modal-reset" class="btn btn-danger">結果をリセット</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト通知 -->
+  <div id="toast" class="toast"></div>
+
+  <script src="js/tournament.js"></script>
+  <script src="js/draw.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

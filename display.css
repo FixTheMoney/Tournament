@@ -1,0 +1,239 @@
+/* ============================================
+   display.css - 投影用表示スタイル
+   ============================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d0d1a;
+  --accent: #e94560;
+  --text: #eaeaea;
+  --text-muted: #666688;
+  --border: #2a2a4a;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  user-select: none;
+}
+
+/* ===================== Controls ===================== */
+#display-controls {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  opacity: 0;
+  transform: translateY(-100%);
+  transition: opacity 0.3s, transform 0.3s;
+}
+body:hover #display-controls,
+#display-controls:hover {
+  opacity: 1;
+  transform: translateY(0);
+}
+.ctrl-inner {
+  background: rgba(13,13,26,0.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+}
+.ctrl-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ctrl-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ctrl-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ctrl-btn:hover { background: rgba(233,69,96,0.3); border-color: var(--accent); }
+.ctrl-btn:active { transform: scale(0.95); }
+#zoom-label {
+  font-size: 12px;
+  min-width: 42px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ===================== Main ===================== */
+#display-main {
+  width: 100%; height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===================== Waiting Screen ===================== */
+#waiting-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+}
+.waiting-inner {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.waiting-icon {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.waiting-icon i {
+  font-size: 56px;
+  color: var(--accent);
+  position: relative;
+  z-index: 2;
+}
+.pulse-ring {
+  position: absolute;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  animation: pulse 2s ease-out infinite;
+}
+.pulse-ring.delay1 { animation-delay: 0.7s; }
+.pulse-ring.delay2 { animation-delay: 1.4s; }
+@keyframes pulse {
+  0%   { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+.waiting-title {
+  font-size: 36px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #e94560, #0f3460);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.waiting-sub {
+  font-size: 15px;
+  color: var(--text-muted);
+}
+.waiting-link {
+  background: rgba(233,69,96,0.15);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 14px;
+  padding: 10px 22px;
+  text-decoration: none;
+  transition: background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.waiting-link:hover { background: rgba(233,69,96,0.3); }
+
+/* ===================== Tournament Display ===================== */
+#tournament-display {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ヘッダー */
+#display-header {
+  padding: 18px 0 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+#display-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 30px rgba(233,69,96,0.5);
+  margin: 8px 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 20px;
+}
+#display-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.display-deco-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  margin: 6px 40px;
+}
+
+/* SVG エリア */
+#svg-outer-wrap {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+#svg-outer-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+#svg-outer-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+#svg-scale-wrap {
+  transform-origin: center center;
+  transition: transform 0.3s ease;
+}
+
+/* ===================== Update Flash ===================== */
+.update-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: rgba(233,69,96,0.12);
+  transition: opacity 0.15s;
+  z-index: 50;
+}
+.update-flash.active {
+  opacity: 1;
+}
+
+/* ===================== フルスクリーン時 ===================== */
+:fullscreen #display-controls {
+  opacity: 0;
+}
+:fullscreen body:hover #display-controls,
+:fullscreen #display-controls:hover {
+  opacity: 1;
+}
