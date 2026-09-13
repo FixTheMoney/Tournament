@@ -132,6 +132,23 @@ input[type="number"]:focus {
   border-color: var(--accent);
 }
 
+.select-input {
+  width: 100%;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 8px 12px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+.select-input:focus {
+  border-color: var(--accent);
+}
+
 .num-input-wrap {
   display: flex;
   align-items: center;
@@ -408,13 +425,44 @@ input[type="color"] {
 .logo-remove-btn:hover { background: rgba(192,57,43,0.15); }
 .logo-remove-btn:active { transform: scale(0.9); }
 
+/* ===================== Page Background ===================== */
+.page-bg-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.page-bg-preview {
+  width: 64px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.page-bg-preview-empty {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.page-bg-preview-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
 /* ===================== Presets ===================== */
 .preset-wrap {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: 8px;
 }
 .preset-label { font-size: 11px; color: var(--text-muted); }
 .preset-btn {
@@ -428,16 +476,52 @@ input[type="color"] {
 }
 .preset-btn:hover { transform: scale(1.15); border-color: var(--accent); }
 
+/* ===================== Collapsible Settings ===================== */
+.settings-collapse {
+  margin-top: 4px;
+}
+.settings-collapse summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  user-select: none;
+  transition: color var(--transition);
+}
+.settings-collapse summary::-webkit-details-marker { display: none; }
+.settings-collapse summary::before {
+  content: '\f054'; /* fa-chevron-right */
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 9px;
+  transition: transform 0.2s;
+  color: var(--text-muted);
+}
+.settings-collapse[open] summary::before {
+  transform: rotate(90deg);
+}
+.settings-collapse summary:hover { color: var(--text); }
+.settings-collapse summary i { color: var(--accent); }
+.settings-collapse-body {
+  padding-top: 8px;
+}
+
 /* ===================== Tournament Area ===================== */
 #tournament-area {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 24px;
+  padding: 10px 24px 24px;
   background: var(--bg-deep);
+  min-height: 0;
 }
 
 /* Empty state */
@@ -456,22 +540,12 @@ input[type="color"] {
 #empty-state p { font-size: 14px; line-height: 1.8; }
 
 /* Tournament wrapper */
-#tournament-wrapper { width: 100%; }
-#tournament-header {
-  text-align: center;
-  margin-bottom: 16px;
-}
-#tournament-title-display {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: 0.04em;
-  text-shadow: 0 0 20px rgba(233,69,96,0.4);
-}
-#tournament-meta {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 4px;
+#tournament-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 #svg-scroll-wrap {
@@ -481,9 +555,30 @@ input[type="color"] {
   border-radius: var(--radius);
   border: 1px solid var(--border);
   padding: 16px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
 }
 #svg-scroll-wrap::-webkit-scrollbar { height: 6px; width: 6px; }
 #svg-scroll-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/*
+ * 中央寄せは flexbox の align/justify-content:center や margin:auto、
+ * position:absolute + translate(-50%,-50%) では行わない。
+ * これらの手法は、内容が親のスクロール領域からはみ出した場合に
+ * 「終端側（右・下）」にしかスクロール可能領域が生成されず、
+ * 「開始側（上・左）」にはみ出した分がスクロールで見えなくなる
+ * ブラウザの既知の挙動があるため。
+ * 代わりに transform-origin を左上（0 0）にし、JS側で
+ * コンテンツがコンテナに収まる場合のみ margin を計算して中央寄せし、
+ * はみ出す場合は margin を0にすることで、常に正しいスクロール範囲を維持する
+ * （js/admin.js の fitTournamentToArea() / centerAdminScaleWrap() を参照）。
+ */
+#svg-scale-wrap {
+  display: inline-block;
+  transform-origin: 0 0;
+  transition: transform 0.3s ease, margin 0.3s ease;
+}
 
 #tournament-svg .slot-clickable {
   cursor: pointer;

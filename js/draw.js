@@ -1,8 +1,8 @@
 /**
  * draw.js
- * トーナメント表を SVG で描画するモジュール (v5)
+ * トーナメント表を SVG で描画するモジュール (v6)
  * ── 左右のブロックが中央（決勝）に向かって収束するレイアウト ──
- * ── 優勝者は上部に表示、3位決定戦は決勝の下に表示 ──
+ * ── タイトル直下にラウンドラベル行、優勝者バナーは決定時のみラベル行の下に表示 ──
  * ── ロゴ・画像はSVG座標系に自由配置。管理画面ではドラッグ移動・ハンドルでリサイズ可能 ──
  */
 
@@ -10,20 +10,20 @@
 // レイアウト定数
 // =============================================
 const SLOT_W       = 190;  // プレイヤー枠の幅
-const SLOT_H       = 46;   // プレイヤー枠の高さ（名前＋カテゴリーの2行表示に対応）
+const SLOT_H       = 58;   // プレイヤー枠の高さ（従来比 約+25%。名前の視認性向上のため）
 const PAIR_GAP     = 8;    // 1試合の2枠の隙間
 const MATCH_GAP    = 28;   // 試合と試合の間
 const ROUND_GAP    = 64;   // ラウンド間の水平間隔
 const MARGIN_LEFT  = 30;   // 左マージン
 const MARGIN_RIGHT = 30;   // 右マージン
 
-const TITLE_Y        = 34;  // タイトルのY座標（ロゴが無い場合の基準値）
-const CHAMP_TOP       = 60;  // 優勝者バナーの上端Y（ロゴが無い場合の基準値）
-const CHAMP_BANNER_W  = 270; // 優勝者バナーの幅
-const CHAMP_BANNER_H  = 72;  // 優勝者バナーの高さ
-const LABEL_GAP_TOP   = 40;  // 優勝者バナー〜ラウンドラベルの間隔
-const LABEL_H         = 26;  // ラウンドラベルの高さ
-const BRACKET_GAP_TOP = 18;  // ラウンドラベル〜ブラケット開始の間隔
+const TITLE_Y             = 36;  // タイトルの中心Y座標（上に少し余白を確保）
+const TITLE_TO_LABEL_GAP  = 42;  // タイトル中心 〜 ラウンドラベル(ベースライン)の間隔（タイトル下の余白）
+const LABEL_ROW_PAD_BELOW = 16;  // ラウンドラベル行の下に確保する余白（ディセンダー＋ゆとり）
+const CHAMP_GAP_ABOVE     = 28;  // ラウンドラベル行 〜 優勝者バナー（決定時のみ表示）の間隔（もう少し下げる）
+const CHAMP_BANNER_W      = 270; // 優勝者バナーの幅
+const CHAMP_BANNER_H      = 60;  // 優勝者バナーの高さ
+const BRACKET_GAP_TOP     = 20;  // （優勝者バナー or ラウンドラベル行）〜 ブラケット開始の間隔
 
 const THIRD_GAP_ABOVE = 64;  // 決勝の下端〜3位決定戦ラベルの間隔
 const THIRD_LABEL_H   = 26;  // 3位決定戦ラベルの高さ
@@ -32,6 +32,15 @@ const THIRD_GAP_BELOW = 26;  // 3位決定戦ラベル〜対戦枠の間隔
 const LOGO_DEFAULT_X  = 24;  // ロゴのデフォルトX座標（未配置時）
 const LOGO_DEFAULT_Y  = 24;  // ロゴのデフォルトY座標（未配置時）
 const LOGO_HANDLE_SIZE = 16; // リサイズハンドルのサイズ
+
+// プレイヤー枠内テキストのフォントサイズ
+const NAME_SIZE_INLINE   = 20;  // 名前＋カテゴリーが1行に収まる場合の名前フォントサイズ（最大限大きく）
+const CAT_SIZE_INLINE    = 14;  // 1行表示時のカテゴリーフォントサイズ（名前より少し小さめ）
+const NAME_SIZE_STACKED  = 18;  // 1行に収まらず2段表示にフォールバックした場合の名前フォントサイズ
+const CAT_SIZE_STACKED   = 13;  // 2段表示時のカテゴリーフォントサイズ
+const BYE_FONT_SIZE      = 15;  // BYE表示のフォントサイズ
+const EMPTY_FONT_SIZE    = 18;  // 未確定プレースホルダー（─ ─ ─）のフォントサイズ
+const NAME_CAT_GAP       = 8;   // 1行表示時の名前とカテゴリーの間隔(px)
 
 /**
  * メイン描画関数
@@ -49,19 +58,24 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
 
   const colors = settings.colors || {};
   const C = {
-    bg:        colors.bg        || '#1a1a2e',
-    bgOp:      colors.bgOpacity !== undefined ? colors.bgOpacity : 1,
-    slot:      colors.slot      || '#16213e',
-    slotWin:   colors.slotWin   || '#e94560',
-    slotBye:   colors.slotBye   || '#2a2a3e',
-    text:      colors.text      || '#eaeaea',
-    titleText: colors.titleText || colors.text || '#eaeaea',
-    line:      colors.line      || '#4a4a6a',
-    lineWin:   colors.lineWin   || '#e94560',
-    accent:    colors.accent    || '#0f3460',
-    label:     colors.labelText || '#8888aa',
-    byeText:   colors.byeText   || '#444466',
-    bronze:    '#c08a4e'
+    bg:          colors.bg          || '#1a1a2e',
+    bgOp:        colors.bgOpacity   !== undefined ? colors.bgOpacity : 1,
+    slot:        colors.slot        || '#16213e',
+    slotWin:     colors.slotWin     || '#e94560',
+    slotBye:     colors.slotBye     || '#2a2a3e',
+    text:        colors.text        || '#eaeaea',
+    titleText:   colors.titleText   || colors.text || '#eaeaea',
+    line:        colors.line        || '#4a4a6a',
+    lineWin:     colors.lineWin     || '#e94560',
+    border:      colors.border      || colors.accent || '#8888aa',
+    borderWidth: colors.borderWidth !== undefined ? colors.borderWidth : 1.5,
+    accent:      colors.accent      || '#0f3460',
+    label:       colors.labelText   || '#8888aa',
+    byeText:     colors.byeText     || '#444466',
+    bronze:      '#c08a4e',
+    showCategory: settings.showCategory !== false,
+    nameFont:    settings.nameFont || "'Noto Sans JP', sans-serif",
+    nameBold:    !!settings.nameBold
   };
 
   // =============================================
@@ -72,8 +86,12 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
   const backLogos  = allLogos.filter(l => l.layer === 'back' || l.position === 'background');
   const frontLogos = allLogos.filter(l => !(l.layer === 'back' || l.position === 'background'));
 
-  const titleY   = TITLE_Y;
-  const champTop = CHAMP_TOP;
+  // =============================================
+  // 優勝者判定（レイアウト計算で使用するため先に求める）
+  // =============================================
+  const finalId    = rounds[numRounds - 1].matches[0];
+  const finalMatch = tournament.matches[finalId];
+  const hasChampion = !!(finalMatch && finalMatch.winner && !finalMatch.winner.isBye);
 
   // =============================================
   // X座標ヘルパー（左半分 → 中央（決勝）← 右半分 のミラー配置）
@@ -89,9 +107,21 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
   let svgWidth = Math.max(xRightOuter + SLOT_W + MARGIN_RIGHT, CHAMP_BANNER_W + MARGIN_LEFT + MARGIN_RIGHT + 200);
 
   // =============================================
-  // 垂直サイズ計算
+  // 垂直レイアウト計算
+  // タイトル → ラウンドラベル行 → （優勝者バナー：決定時のみ）→ ブラケット
   // =============================================
-  const BRACKET_TOP = champTop + CHAMP_BANNER_H + LABEL_GAP_TOP + LABEL_H + BRACKET_GAP_TOP;
+  const titleY = TITLE_Y;
+  const labelY = TITLE_Y + TITLE_TO_LABEL_GAP;
+  const labelRowBottom = labelY + LABEL_ROW_PAD_BELOW;
+
+  let champTop = null;
+  let BRACKET_TOP;
+  if (hasChampion) {
+    champTop = labelRowBottom + CHAMP_GAP_ABOVE;
+    BRACKET_TOP = champTop + CHAMP_BANNER_H + BRACKET_GAP_TOP;
+  } else {
+    BRACKET_TOP = labelRowBottom + BRACKET_GAP_TOP;
+  }
 
   let totalH, halfMatchCount0;
   if (numRounds === 1) {
@@ -177,13 +207,66 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
   svgEl.appendChild(titleEl);
 
   // =============================================
+  // ラウンドラベル（タイトル直下の行）
+  // =============================================
+  function addLabel(x, text) {
+    const lEl = ce('text', {
+      x, y: labelY,
+      'text-anchor': 'middle', fill: C.label,
+      'font-size': 14, 'font-family': 'Noto Sans JP, sans-serif',
+      'letter-spacing': '0.05em'
+    });
+    lEl.textContent = text;
+    svgEl.appendChild(lEl);
+  }
+
+  if (numRounds >= 2) {
+    for (let r = 0; r <= numRounds - 2; r++) {
+      const label = getRoundLabel(r, numRounds);
+      addLabel(xLeft(r) + SLOT_W / 2, label);
+      addLabel(xRight(r) + SLOT_W / 2, label);
+    }
+  }
+  addLabel(xCenter + SLOT_W / 2, '決勝');
+
+  // =============================================
+  // 優勝者バナー（ラウンドラベル行の下・中央、優勝者決定時のみ表示）
+  // =============================================
+  if (hasChampion) {
+    const champBoxX = svgWidth / 2 - CHAMP_BANNER_W / 2;
+
+    const cRect = ce('rect', {
+      x: champBoxX, y: champTop, width: CHAMP_BANNER_W, height: CHAMP_BANNER_H,
+      fill: '#c9942f', rx: 10,
+      filter: 'url(#glow-gold)'
+    });
+    svgEl.appendChild(cRect);
+
+    const icon = ce('text', {
+      x: svgWidth / 2, y: champTop + 18,
+      'text-anchor': 'middle', fill: '#3a2600', 'font-size': 14,
+      'font-weight': 'bold',
+      'font-family': 'Noto Sans JP, sans-serif'
+    });
+    icon.textContent = '🏆 CHAMPION 🏆';
+    svgEl.appendChild(icon);
+
+    const cName = ce('text', {
+      x: svgWidth / 2, y: champTop + CHAMP_BANNER_H - 18,
+      'text-anchor': 'middle', fill: '#2a1a00', 'font-size': 22,
+      'font-weight': 'bold', 'font-family': 'Noto Sans JP, sans-serif'
+    });
+    cName.textContent = truncate(finalMatch.winner.name, 16);
+    svgEl.appendChild(cName);
+  }
+
+  // =============================================
   // 座標マップの構築
   // =============================================
   const matchX = {};
   const matchY = {};
   const matchSide = {};
 
-  const finalId = rounds[numRounds - 1].matches[0];
   matchX[finalId] = xCenter;
   matchY[finalId] = finalYAbs;
   matchSide[finalId] = 'final';
@@ -209,77 +292,6 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
       });
     }
   }
-
-  // =============================================
-  // 優勝者バナー（上部・中央）
-  // =============================================
-  const champBoxX = svgWidth / 2 - CHAMP_BANNER_W / 2;
-  const finalMatch = tournament.matches[finalId];
-  const hasChampion = finalMatch && finalMatch.winner && !finalMatch.winner.isBye;
-
-  if (hasChampion) {
-    const cRect = ce('rect', {
-      x: champBoxX, y: champTop, width: CHAMP_BANNER_W, height: CHAMP_BANNER_H,
-      fill: '#c9942f', rx: 10,
-      filter: 'url(#glow-gold)'
-    });
-    svgEl.appendChild(cRect);
-
-    const icon = ce('text', {
-      x: svgWidth / 2, y: champTop + 22,
-      'text-anchor': 'middle', fill: '#3a2600', 'font-size': 15,
-      'font-weight': 'bold',
-      'font-family': 'Noto Sans JP, sans-serif'
-    });
-    icon.textContent = '🏆 CHAMPION 🏆';
-    svgEl.appendChild(icon);
-
-    const cName = ce('text', {
-      x: svgWidth / 2, y: champTop + CHAMP_BANNER_H - 20,
-      'text-anchor': 'middle', fill: '#2a1a00', 'font-size': 23,
-      'font-weight': 'bold', 'font-family': 'Noto Sans JP, sans-serif'
-    });
-    cName.textContent = truncate(finalMatch.winner.name, 16);
-    svgEl.appendChild(cName);
-  } else {
-    svgEl.appendChild(ce('rect', {
-      x: champBoxX, y: champTop, width: CHAMP_BANNER_W, height: CHAMP_BANNER_H,
-      fill: 'none', rx: 10,
-      stroke: C.line, 'stroke-width': 1.5,
-      'stroke-dasharray': '6 4'
-    }));
-    const eLbl = ce('text', {
-      x: svgWidth / 2, y: champTop + CHAMP_BANNER_H / 2,
-      'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      fill: C.label, 'font-size': 16, 'font-family': 'Noto Sans JP, sans-serif'
-    });
-    eLbl.textContent = '🏆 優勝者';
-    svgEl.appendChild(eLbl);
-  }
-
-  // =============================================
-  // ラウンドラベル
-  // =============================================
-  const labelY = champTop + CHAMP_BANNER_H + LABEL_GAP_TOP;
-  function addLabel(x, text) {
-    const lEl = ce('text', {
-      x, y: labelY,
-      'text-anchor': 'middle', fill: C.label,
-      'font-size': 14, 'font-family': 'Noto Sans JP, sans-serif',
-      'letter-spacing': '0.05em'
-    });
-    lEl.textContent = text;
-    svgEl.appendChild(lEl);
-  }
-
-  if (numRounds >= 2) {
-    for (let r = 0; r <= numRounds - 2; r++) {
-      const label = getRoundLabel(r, numRounds);
-      addLabel(xLeft(r) + SLOT_W / 2, label);
-      addLabel(xRight(r) + SLOT_W / 2, label);
-    }
-  }
-  addLabel(xCenter + SLOT_W / 2, '決勝');
 
   // =============================================
   // BYE不戦勝の判定
@@ -459,7 +471,7 @@ function drawSlot(svgEl, match, slot, x, y, w, h, C, isAdmin) {
   const isEmpty   = !player.name || player.name === '';
   const isAutoAdv = player.autoAdvanced;
   const canClick  = isAdmin && !isBye && !isEmpty;
-  const hasCategory = !isBye && !isEmpty && !!(player.category && player.category.trim());
+  const hasCategory = C.showCategory && !isBye && !isEmpty && !!(player.category && player.category.trim());
 
   let fill = C.slot;
   if (isBye)          fill = C.slotBye;
@@ -469,8 +481,8 @@ function drawSlot(svgEl, match, slot, x, y, w, h, C, isAdmin) {
   const attrs = {
     x, y, width: w, height: h,
     fill, rx: 5,
-    stroke: isWinner ? C.slotWin : (isEmpty || isBye ? 'none' : C.accent),
-    'stroke-width': isWinner ? 2 : 1,
+    stroke: isWinner ? C.slotWin : (isBye ? 'none' : C.border),
+    'stroke-width': isWinner ? Math.max(C.borderWidth, 2) : C.borderWidth,
     opacity: isBye ? 0.35 : 1,
     'data-match-id': match.id,
     'data-slot': slot
@@ -488,48 +500,97 @@ function drawSlot(svgEl, match, slot, x, y, w, h, C, isAdmin) {
   }
 
   const tx = x + (isWinner ? 28 : 12);
+  const padRight = 12;
+  const availW = Math.max(10, w - (tx - x) - padRight);
   const nameColor = isBye ? C.byeText : (isWinner ? '#fff' : (isEmpty ? C.label : C.text));
+  const nameWeight = (isWinner || C.nameBold) ? 'bold' : 'normal';
+  const nameFontFamily = `${C.nameFont}, "Noto Sans JP", sans-serif`;
+  const ty = y + h / 2;
+
+  // BYE表示
+  if (isBye) {
+    const tEl = ce('text', {
+      x: tx, y: ty, 'dominant-baseline': 'middle',
+      fill: nameColor, 'font-size': BYE_FONT_SIZE, 'font-family': 'Noto Sans JP, sans-serif',
+      'pointer-events': 'none'
+    });
+    tEl.textContent = 'BYE';
+    svgEl.appendChild(tEl);
+    return;
+  }
+
+  // 未確定プレースホルダー
+  if (isEmpty) {
+    const tEl = ce('text', {
+      x: tx, y: ty, 'dominant-baseline': 'middle',
+      fill: nameColor, 'font-size': EMPTY_FONT_SIZE, 'font-family': 'Noto Sans JP, sans-serif',
+      'pointer-events': 'none'
+    });
+    tEl.textContent = '─ ─ ─';
+    svgEl.appendChild(tEl);
+    return;
+  }
+
+  const rawName = player.name;
+  const catColor = isWinner ? 'rgba(255,255,255,0.85)' : C.label;
 
   if (hasCategory) {
-    // 名前＋カテゴリーの2行表示
-    const nameY = y + h * 0.36;
-    const catY  = y + h * 0.74;
+    const catText = `(${player.category.trim()})`;
 
-    const nameEl = ce('text', {
-      x: tx, y: nameY,
-      'dominant-baseline': 'middle',
-      fill: nameColor,
-      'font-size': 16,
-      'font-weight': isWinner ? 'bold' : 'normal',
-      'font-family': 'Noto Sans JP, sans-serif',
-      'pointer-events': 'none'
-    });
-    nameEl.textContent = truncate(player.name, 12);
-    svgEl.appendChild(nameEl);
+    // まず「名前 + カテゴリー」の1行表示が枠幅に収まるか判定
+    const nameW = measureTextWidth(rawName, NAME_SIZE_INLINE, nameWeight, nameFontFamily);
+    const catW  = measureTextWidth(catText, CAT_SIZE_INLINE, 'normal');
+    const totalW = nameW + NAME_CAT_GAP + catW;
 
-    const catEl = ce('text', {
-      x: tx, y: catY,
-      'dominant-baseline': 'middle',
-      fill: isWinner ? 'rgba(255,255,255,0.85)' : C.label,
-      'font-size': 11,
-      'font-weight': 'normal',
-      'font-family': 'Noto Sans JP, sans-serif',
-      'pointer-events': 'none'
-    });
-    catEl.textContent = `(${truncate(player.category.trim(), 16)})`;
-    svgEl.appendChild(catEl);
+    if (totalW <= availW) {
+      // 1行表示：名前の後にカテゴリー（デフォルト位置）
+      const textEl = ce('text', {
+        x: tx, y: ty, 'dominant-baseline': 'middle',
+        'font-size': NAME_SIZE_INLINE,
+        'pointer-events': 'none'
+      });
+      const nameTspan = ce('tspan', { fill: nameColor, 'font-weight': nameWeight, 'font-family': nameFontFamily });
+      nameTspan.textContent = rawName;
+      textEl.appendChild(nameTspan);
+
+      const catTspan = ce('tspan', { fill: catColor, 'font-size': CAT_SIZE_INLINE, dx: NAME_CAT_GAP, 'font-family': 'Noto Sans JP, sans-serif' });
+      catTspan.textContent = catText;
+      textEl.appendChild(catTspan);
+
+      svgEl.appendChild(textEl);
+    } else {
+      // 収まらない場合：カテゴリーを下段に移動し、名前・カテゴリーのフォントを調整
+      const nameY = y + h * 0.35;
+      const catY  = y + h * 0.72;
+
+      const nameDisplay = truncateToWidth(rawName, NAME_SIZE_STACKED, availW, nameWeight, nameFontFamily);
+      const catDisplay  = truncateToWidth(catText, CAT_SIZE_STACKED, availW, 'normal');
+
+      const nameEl = ce('text', {
+        x: tx, y: nameY, 'dominant-baseline': 'middle',
+        fill: nameColor, 'font-size': NAME_SIZE_STACKED, 'font-weight': nameWeight,
+        'font-family': nameFontFamily, 'pointer-events': 'none'
+      });
+      nameEl.textContent = nameDisplay;
+      svgEl.appendChild(nameEl);
+
+      const catEl = ce('text', {
+        x: tx, y: catY, 'dominant-baseline': 'middle',
+        fill: catColor, 'font-size': CAT_SIZE_STACKED,
+        'font-family': 'Noto Sans JP, sans-serif', 'pointer-events': 'none'
+      });
+      catEl.textContent = catDisplay;
+      svgEl.appendChild(catEl);
+    }
   } else {
-    const ty = y + h / 2;
+    // カテゴリー無し：1行で名前のみ、枠幅に収まるよう自動調整
+    const nameDisplay = truncateToWidth(rawName, NAME_SIZE_INLINE, availW, nameWeight, nameFontFamily);
     const tEl = ce('text', {
-      x: tx, y: ty,
-      'dominant-baseline': 'middle',
-      fill: nameColor,
-      'font-size': isBye ? 13 : 16,
-      'font-weight': isWinner ? 'bold' : 'normal',
-      'font-family': 'Noto Sans JP, sans-serif',
-      'pointer-events': 'none'
+      x: tx, y: ty, 'dominant-baseline': 'middle',
+      fill: nameColor, 'font-size': NAME_SIZE_INLINE, 'font-weight': nameWeight,
+      'font-family': nameFontFamily, 'pointer-events': 'none'
     });
-    tEl.textContent = isBye ? 'BYE' : (isEmpty ? '─ ─ ─' : truncate(player.name, 12));
+    tEl.textContent = nameDisplay;
     svgEl.appendChild(tEl);
   }
 }
@@ -547,9 +608,9 @@ function drawLine(svgEl, x1, y1, x2, y2, color, isWin, isDashed) {
   }
   const attrs = {
     d, stroke: color,
-    'stroke-width': isWin ? 2.5 : 1.5,
+    'stroke-width': isWin ? 4 : 2.5,
     fill: 'none',
-    opacity: isWin ? 0.95 : (isDashed ? 0.5 : 0.45)
+    opacity: isWin ? 0.95 : (isDashed ? 0.6 : 0.55)
   };
   if (isDashed) attrs['stroke-dasharray'] = '5 4';
   const path = ce('path', attrs);
@@ -588,6 +649,47 @@ function blendHex(hex1, hex2, t) {
 function truncate(str, maxLen) {
   if (!str) return '';
   return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
+}
+
+// =============================================
+// テキスト幅計測（Canvas 2D を利用したピクセル単位での実測）
+// フォントサイズに応じて「名前+カテゴリー」が1行に収まるか判定し、
+// 収まらない場合の省略（truncate）にも使用する。
+// =============================================
+let _measureCanvas = null;
+function getMeasureCtx() {
+  if (!_measureCanvas) {
+    _measureCanvas = document.createElement('canvas');
+  }
+  return _measureCanvas.getContext('2d');
+}
+
+function measureTextWidth(text, fontSize, weight, fontFamily) {
+  if (!text) return 0;
+  const ctx = getMeasureCtx();
+  ctx.font = `${weight || 'normal'} ${fontSize}px ${fontFamily || '"Noto Sans JP", sans-serif'}`;
+  return ctx.measureText(text).width;
+}
+
+/**
+ * text を fontSize/weight で maxWidth 以内に収まるよう末尾を省略（…付き）する。
+ * 文字数ではなく実測ピクセル幅で判定するため、フォントサイズ変更に強い。
+ */
+function truncateToWidth(text, fontSize, maxWidth, weight, fontFamily) {
+  if (!text) return '';
+  if (measureTextWidth(text, fontSize, weight, fontFamily) <= maxWidth) return text;
+
+  let lo = 0, hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    const candidate = text.slice(0, mid) + '…';
+    if (measureTextWidth(candidate, fontSize, weight, fontFamily) <= maxWidth) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return lo > 0 ? text.slice(0, lo) + '…' : '…';
 }
 
 function getRoundLabel(r, total) {

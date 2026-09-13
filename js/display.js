@@ -53,6 +53,7 @@ function setupBroadcastChannel() {
         displayState.tournament = null;
         displayState.settings = null;
         showWaiting();
+        applyPageBackground(null);
       }
     });
   } catch (e) {
@@ -82,6 +83,7 @@ function setupBroadcastChannel() {
 function showWaiting() {
   document.getElementById('waiting-screen').style.display = '';
   document.getElementById('tournament-display').style.display = 'none';
+  applyPageBackground(null);
 }
 
 function showTournament() {
@@ -98,28 +100,33 @@ function renderTournament() {
 
   const settings = displayState.settings || {};
 
-  // タイトル
-  const titleEl = document.getElementById('display-title');
-  titleEl.textContent = settings.title || 'トーナメント大会';
-
-  // メタ情報
-  const metaEl = document.getElementById('display-meta');
-  const n = settings.numPlayers || displayState.tournament.numPlayers;
-  const total = displayState.tournament.total;
-  const byeCount = total - n;
-  metaEl.textContent = `参加人数: ${n}人${byeCount > 0 ? ` (シード: ${byeCount}枠)` : ''}  ·  ${displayState.tournament.rounds.length}ラウンド`;
-
   // SVG 描画
   const svg = document.getElementById('display-svg');
   DrawLib.drawTournament(svg, displayState.tournament, settings, false);
 
-  // 投影用タイトルカラーをカスタム色に合わせる
-  if (settings.colors && settings.colors.text) {
-    titleEl.style.color = settings.colors.text;
-  }
-
   // 表示幅設定を反映してからズームをリセット（フィット/固定）
   applyDisplayWidth(settings.displayWidth);
+
+  // ページ背景（トーナメントエリア周囲）を反映
+  applyPageBackground(settings.pageBackground);
+}
+
+// =============================================
+// ページ背景（トーナメントエリア周囲）の適用
+// =============================================
+function applyPageBackground(pageBackground) {
+  const mainEl = document.getElementById('display-main');
+  if (!mainEl) return;
+  const pb = pageBackground || { color: '#0d0d1a', imageDataUrl: null };
+  mainEl.style.backgroundColor = pb.color || '#0d0d1a';
+  if (pb.imageDataUrl) {
+    mainEl.style.backgroundImage = `url("${pb.imageDataUrl}")`;
+    mainEl.style.backgroundSize = '100% 100%';
+    mainEl.style.backgroundRepeat = 'no-repeat';
+    mainEl.style.backgroundPosition = 'center';
+  } else {
+    mainEl.style.backgroundImage = 'none';
+  }
 }
 
 // =============================================
@@ -149,6 +156,7 @@ function setFixedWidth(targetWidth) {
   const wrap = document.getElementById('svg-scale-wrap');
   wrap.style.transform = `scale(${displayState.zoom})`;
   document.getElementById('zoom-label').textContent = `${Math.round(displayState.zoom * 100)}%`;
+  centerScaleWrap();
 }
 
 // =============================================
@@ -159,6 +167,42 @@ function setZoom(zoom) {
   const wrap = document.getElementById('svg-scale-wrap');
   wrap.style.transform = `scale(${displayState.zoom})`;
   document.getElementById('zoom-label').textContent = `${Math.round(displayState.zoom * 100)}%`;
+  centerScaleWrap();
+}
+
+/**
+ * #svg-scale-wrap を #svg-outer-wrap 内で中央寄せする。
+ * コンテンツが親に収まる場合のみ margin で中央寄せし、
+ * はみ出す場合は margin を0にすることで、
+ * 上端・左端まで正しくスクロールできる状態を維持する
+ * （flexboxのcenter系プロパティやtranslate(-50%,-50%)は
+ *   はみ出し時に開始側へスクロールできなくなるため使用しない）。
+ */
+function centerScaleWrap() {
+  const outer = document.getElementById('svg-outer-wrap');
+  const wrap = document.getElementById('svg-scale-wrap');
+  const svg = document.getElementById('display-svg');
+  if (!outer || !wrap || !svg) return;
+
+  const svgW = parseFloat(svg.getAttribute('width')) || 0;
+  const svgH = parseFloat(svg.getAttribute('height')) || 0;
+  const scaledW = svgW * displayState.zoom;
+  const scaledH = svgH * displayState.zoom;
+
+  // padding分を差し引いた実際の表示可能領域
+  const cs = getComputedStyle(outer);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const availW = outer.clientWidth - padX;
+  const availH = outer.clientHeight - padY;
+
+  const marginX = Math.max(0, (availW - scaledW) / 2);
+  const marginY = Math.max(0, (availH - scaledH) / 2);
+
+  wrap.style.marginLeft = `${marginX}px`;
+  wrap.style.marginRight = `${marginX}px`;
+  wrap.style.marginTop = `${marginY}px`;
+  wrap.style.marginBottom = `${marginY}px`;
 }
 
 function fitToScreen() {

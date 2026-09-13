@@ -14,22 +14,32 @@ let appState = {
     playerNames: [],
     playerCategories: [],
     colors: {
-      bg: '#1a1a2e',
+      bg: '#000000',
       bgOpacity: 1,
-      slot: '#16213e',
-      slotWin: '#e94560',
-      slotBye: '#2a2a3e',
-      text: '#eaeaea',
-      line: '#4a4a6a',
-      lineWin: '#e94560',
-      accent: '#0f3460',
-      labelText: '#8888aa',
-      byeText: '#444466'
+      slot: '#000000',
+      slotWin: '#c6504c',
+      slotBye: '#141414',
+      text: '#fdfdfd',
+      titleText: '#fdfdfd',
+      line: '#ffffff',
+      lineWin: '#c6504c',
+      border: '#ffffff',
+      borderWidth: 1.5,
+      accent: '#333333',
+      labelText: '#aaaaaa',
+      byeText: '#555555'
     },
     displayWidth: {
       enabled: false,
       value: 1200
     },
+    pageBackground: {
+      color: '#0d0d1a',
+      imageDataUrl: null
+    },
+    showCategory: true,
+    nameFont: "'Noto Sans JP', sans-serif",
+    nameBold: false,
     logos: []
   },
   selectedMatch: null
@@ -46,41 +56,19 @@ let logoDrag = null;
 
 // カラープリセット
 const PRESETS = {
-  dark: {
-    bg: '#1a1a2e', bgOpacity: 1,
-    slot: '#16213e', slotWin: '#e94560', slotBye: '#2a2a3e',
-    text: '#eaeaea', line: '#4a4a6a', lineWin: '#e94560',
-    accent: '#0f3460', labelText: '#8888aa', byeText: '#444466'
-  },
   light: {
-    bg: '#f0f4ff', bgOpacity: 1,
-    slot: '#ffffff', slotWin: '#e74c3c', slotBye: '#e8e8f0',
-    text: '#222244', line: '#aaaacc', lineWin: '#e74c3c',
-    accent: '#c8d4ff', labelText: '#6666aa', byeText: '#99a0c8'
+    bg: '#faf2cc', bgOpacity: 1,
+    slot: '#faf2cc', slotWin: '#c6504c', slotBye: '#efe6bd',
+    text: '#000000', titleText: '#000000', line: '#000000', lineWin: '#c6504c',
+    border: '#000000', borderWidth: 1.5,
+    accent: '#d8cca0', labelText: '#555555', byeText: '#999999'
   },
-  ocean: {
-    bg: '#001529', bgOpacity: 1,
-    slot: '#003366', slotWin: '#00c8ff', slotBye: '#001f44',
-    text: '#cce8ff', line: '#0055aa', lineWin: '#00c8ff',
-    accent: '#004488', labelText: '#6699cc', byeText: '#335577'
-  },
-  forest: {
-    bg: '#0d1f0f', bgOpacity: 1,
-    slot: '#1a3a1e', slotWin: '#2ecc71', slotBye: '#0f2212',
-    text: '#c8f0cc', line: '#2a5c2e', lineWin: '#2ecc71',
-    accent: '#1a4a1e', labelText: '#66aa77', byeText: '#3a5a3e'
-  },
-  fire: {
-    bg: '#1a0a00', bgOpacity: 1,
-    slot: '#2d1200', slotWin: '#ff6600', slotBye: '#1a0800',
-    text: '#ffe8cc', line: '#662200', lineWin: '#ff6600',
-    accent: '#331100', labelText: '#aa7755', byeText: '#5a3a22'
-  },
-  bitblock: {
-    bg: '#0a0a0a', bgOpacity: 1,
-    slot: '#161616', slotWin: '#e0142c', slotBye: '#141414',
-    text: '#ffffff', titleText: '#ffffff', line: '#ffffff', lineWin: '#e0142c',
-    accent: '#333333', labelText: '#cccccc', byeText: '#555555'
+  dark: {
+    bg: '#000000', bgOpacity: 1,
+    slot: '#000000', slotWin: '#c6504c', slotBye: '#141414',
+    text: '#fdfdfd', titleText: '#fdfdfd', line: '#ffffff', lineWin: '#c6504c',
+    border: '#ffffff', borderWidth: 1.5,
+    accent: '#333333', labelText: '#aaaaaa', byeText: '#555555'
   }
 };
 
@@ -105,6 +93,18 @@ function loadFromStorage() {
   if (!Array.isArray(appState.settings.logos)) {
     appState.settings.logos = [];
   }
+  if (!appState.settings.pageBackground) {
+    appState.settings.pageBackground = { color: '#0d0d1a', imageDataUrl: null };
+  }
+  if (appState.settings.showCategory === undefined) {
+    appState.settings.showCategory = true;
+  }
+  if (!appState.settings.nameFont) {
+    appState.settings.nameFont = "'Noto Sans JP', sans-serif";
+  }
+  if (appState.settings.nameBold === undefined) {
+    appState.settings.nameBold = false;
+  }
 }
 
 function restoreUI() {
@@ -117,6 +117,20 @@ function restoreUI() {
 
   // 表示幅設定を復元
   applyDisplayWidthToUI(appState.settings.displayWidth);
+
+  // ページ背景設定を復元
+  applyPageBackgroundToUI(appState.settings.pageBackground);
+  applyPageBackgroundToArea(appState.settings.pageBackground);
+
+  // カテゴリー表示トグルを復元
+  const showCatToggle = document.getElementById('toggle-show-category');
+  if (showCatToggle) showCatToggle.checked = appState.settings.showCategory !== false;
+
+  // 対戦者名フォント・太字設定を復元
+  const nameFontSelect = document.getElementById('select-name-font');
+  if (nameFontSelect) nameFontSelect.value = appState.settings.nameFont || "'Noto Sans JP', sans-serif";
+  const nameBoldToggle = document.getElementById('toggle-name-bold');
+  if (nameBoldToggle) nameBoldToggle.checked = !!appState.settings.nameBold;
 
   // プレイヤーリストを復元
   buildPlayerNameList(appState.settings.numPlayers);
@@ -131,6 +145,7 @@ function restoreUI() {
 
   // セクション表示
   document.getElementById('players-section').style.display = '';
+  document.getElementById('page-bg-section').style.display = '';
   document.getElementById('design-section').style.display = '';
   document.getElementById('logos-section').style.display = '';
   document.getElementById('empty-state').style.display = 'none';
@@ -164,8 +179,8 @@ function bindEvents() {
   document.getElementById('btn-reset').addEventListener('click', onReset);
 
   // カラーピッカー
-  ['bg', 'slot', 'win', 'text', 'bye'].forEach(key => {
-    const mapKey = key === 'win' ? 'slotWin' : (key === 'bye' ? 'byeText' : key);
+  ['bg', 'slot', 'winbox', 'winline', 'text', 'border', 'bye'].forEach(key => {
+    const mapKey = key === 'winbox' ? 'slotWin' : (key === 'winline' ? 'lineWin' : (key === 'bye' ? 'byeText' : key));
     const inp = document.getElementById(`color-${key}`);
     if (!inp) return;
     inp.addEventListener('input', () => {
@@ -175,6 +190,18 @@ function bindEvents() {
       saveState();
     });
   });
+
+  // プレイヤー枠線の太さ
+  const borderWidthInput = document.getElementById('range-border-width');
+  if (borderWidthInput) {
+    borderWidthInput.addEventListener('input', function () {
+      const v = parseFloat(this.value);
+      appState.settings.colors.borderWidth = v;
+      document.getElementById('border-width-val').textContent = `${v}px`;
+      updateTournamentDisplay();
+      saveState();
+    });
+  }
 
   // 透過スライダー
   document.getElementById('range-opacity').addEventListener('input', function () {
@@ -229,6 +256,39 @@ function bindEvents() {
     });
   });
 
+  // カテゴリー表示トグル
+  const showCatToggle = document.getElementById('toggle-show-category');
+  if (showCatToggle) {
+    showCatToggle.addEventListener('change', function () {
+      appState.settings.showCategory = this.checked;
+      updateTournamentDisplay();
+      saveState();
+      showToast(this.checked ? 'カテゴリー表示をオンにしました' : 'カテゴリー表示をオフにしました');
+    });
+  }
+
+  // 対戦者名のフォント選択
+  const nameFontSelect = document.getElementById('select-name-font');
+  if (nameFontSelect) {
+    nameFontSelect.addEventListener('change', function () {
+      appState.settings.nameFont = this.value;
+      updateTournamentDisplay();
+      saveState();
+      showToast('対戦者名のフォントを変更しました');
+    });
+  }
+
+  // 対戦者名の太字トグル
+  const nameBoldToggle = document.getElementById('toggle-name-bold');
+  if (nameBoldToggle) {
+    nameBoldToggle.addEventListener('change', function () {
+      appState.settings.nameBold = this.checked;
+      updateTournamentDisplay();
+      saveState();
+      showToast(this.checked ? '対戦者名を太字にしました' : '対戦者名を通常の太さに戻しました');
+    });
+  }
+
   // タイトル変更
   document.getElementById('input-title').addEventListener('input', function () {
     appState.settings.title = this.value;
@@ -250,6 +310,34 @@ function bindEvents() {
     document.getElementById('logo-file-input').click();
   });
   document.getElementById('logo-file-input').addEventListener('change', onLogoFileSelected);
+
+  // ページ背景設定
+  const pageBgColorInput = document.getElementById('color-page-bg');
+  if (pageBgColorInput) {
+    pageBgColorInput.addEventListener('input', function () {
+      if (!appState.settings.pageBackground) {
+        appState.settings.pageBackground = { color: '#0d0d1a', imageDataUrl: null };
+      }
+      appState.settings.pageBackground.color = this.value;
+      document.getElementById('color-page-bg-label').textContent = this.value;
+      applyPageBackgroundToArea(appState.settings.pageBackground);
+      saveState();
+    });
+  }
+  const btnAddPageBg = document.getElementById('btn-add-page-bg');
+  if (btnAddPageBg) {
+    btnAddPageBg.addEventListener('click', () => {
+      document.getElementById('page-bg-file-input').click();
+    });
+  }
+  const pageBgFileInput = document.getElementById('page-bg-file-input');
+  if (pageBgFileInput) {
+    pageBgFileInput.addEventListener('change', onPageBgFileSelected);
+  }
+  const btnRemovePageBg = document.getElementById('btn-remove-page-bg');
+  if (btnRemovePageBg) {
+    btnRemovePageBg.addEventListener('click', onRemovePageBgImage);
+  }
 
   // ロゴのドラッグ移動・リサイズ（SVG上でマウス/タッチ操作）
   const svgEl = document.getElementById('tournament-svg');
@@ -290,12 +378,15 @@ function onGenerate() {
   buildPlayerNameList(num);
 
   document.getElementById('players-section').style.display = '';
+  document.getElementById('page-bg-section').style.display = '';
   document.getElementById('design-section').style.display = '';
   document.getElementById('logos-section').style.display = '';
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('tournament-wrapper').style.display = '';
 
   renderLogoList();
+  applyPageBackgroundToUI(appState.settings.pageBackground);
+  applyPageBackgroundToArea(appState.settings.pageBackground);
   updateTournamentDisplay();
   saveState();
   showToast(`${num}人のトーナメント表を生成しました！`, 'success');
@@ -535,18 +626,80 @@ document.getElementById('winner-modal').addEventListener('click', function (e) {
 function updateTournamentDisplay() {
   if (!appState.tournament) return;
 
-  const titleEl = document.getElementById('tournament-title-display');
-  titleEl.textContent = appState.settings.title || 'トーナメント大会';
-
-  const meta = document.getElementById('tournament-meta');
-  const n = appState.settings.numPlayers;
-  const total = appState.tournament.total;
-  const byeCount = total - n;
-  meta.textContent = `参加人数: ${n}人${byeCount > 0 ? ` (シード: ${byeCount}枠)` : ''}  |  ${appState.tournament.rounds.length} ラウンド`;
-
   const svg = document.getElementById('tournament-svg');
   DrawLib.drawTournament(svg, appState.tournament, appState.settings, true);
+  fitTournamentToArea();
 }
+
+// =============================================
+// トーナメント表示の自動フィット（画面内でできるだけ大きく表示し、はみ出す場合はスクロールで対応）
+// display.js の fitToScreen()/centerScaleWrap() と同様の仕組み。
+// サイズの制限は設けず、小さい場合は拡大し、大きすぎる場合は縮小する。
+// =============================================
+let adminZoom = 1;
+
+function fitTournamentToArea() {
+  const svg = document.getElementById('tournament-svg');
+  const outer = document.getElementById('svg-scroll-wrap');
+  if (!svg || !outer) return;
+  if (!svg.getAttribute('width') || !svg.getAttribute('height')) return;
+
+  const svgW = parseFloat(svg.getAttribute('width'));
+  const svgH = parseFloat(svg.getAttribute('height'));
+  if (!svgW || !svgH) return;
+
+  const cs = getComputedStyle(outer);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const availW = outer.clientWidth - padX;
+  const availH = outer.clientHeight - padY;
+  if (availW <= 0 || availH <= 0) return;
+
+  const scaleX = availW / svgW;
+  const scaleY = availH / svgH;
+  adminZoom = Math.min(scaleX, scaleY);
+
+  const wrap = document.getElementById('svg-scale-wrap');
+  if (wrap) wrap.style.transform = `scale(${adminZoom})`;
+
+  centerAdminScaleWrap();
+}
+
+/**
+ * #svg-scale-wrap を #svg-scroll-wrap 内で中央寄せする。
+ * コンテンツが親に収まる場合のみ margin で中央寄せし、
+ * はみ出す場合は margin を 0 にすることで、
+ * 上端・左端まで正しくスクロールできる状態を保つ。
+ */
+function centerAdminScaleWrap() {
+  const outer = document.getElementById('svg-scroll-wrap');
+  const wrap = document.getElementById('svg-scale-wrap');
+  const svg = document.getElementById('tournament-svg');
+  if (!outer || !wrap || !svg) return;
+
+  const svgW = parseFloat(svg.getAttribute('width')) || 0;
+  const svgH = parseFloat(svg.getAttribute('height')) || 0;
+  const scaledW = svgW * adminZoom;
+  const scaledH = svgH * adminZoom;
+
+  const cs = getComputedStyle(outer);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const availW = outer.clientWidth - padX;
+  const availH = outer.clientHeight - padY;
+
+  const marginX = Math.max(0, (availW - scaledW) / 2);
+  const marginY = Math.max(0, (availH - scaledH) / 2);
+
+  wrap.style.marginLeft = `${marginX}px`;
+  wrap.style.marginRight = `${marginX}px`;
+  wrap.style.marginTop = `${marginY}px`;
+  wrap.style.marginBottom = `${marginY}px`;
+}
+
+window.addEventListener('resize', () => {
+  if (appState.tournament) fitTournamentToArea();
+});
 
 // =============================================
 // リセット
@@ -559,6 +712,7 @@ function onReset() {
   appState.settings.playerCategories = [];
 
   document.getElementById('players-section').style.display = 'none';
+  document.getElementById('page-bg-section').style.display = 'none';
   document.getElementById('design-section').style.display = 'none';
   document.getElementById('logos-section').style.display = 'none';
   document.getElementById('empty-state').style.display = '';
@@ -568,6 +722,21 @@ function onReset() {
 
   appState.settings.logos = [];
   renderLogoList();
+
+  appState.settings.pageBackground = { color: '#0d0d1a', imageDataUrl: null };
+  applyPageBackgroundToUI(appState.settings.pageBackground);
+  applyPageBackgroundToArea(appState.settings.pageBackground);
+
+  appState.settings.showCategory = true;
+  const showCatToggle = document.getElementById('toggle-show-category');
+  if (showCatToggle) showCatToggle.checked = true;
+
+  appState.settings.nameFont = "'Noto Sans JP', sans-serif";
+  appState.settings.nameBold = false;
+  const nameFontSelect = document.getElementById('select-name-font');
+  if (nameFontSelect) nameFontSelect.value = "'Noto Sans JP', sans-serif";
+  const nameBoldToggle = document.getElementById('toggle-name-bold');
+  if (nameBoldToggle) nameBoldToggle.checked = false;
 
   // 投影ページに通知
   try {
@@ -591,7 +760,7 @@ function saveState() {
 // =============================================
 function applyColorsToUI(colors) {
   const map = {
-    bg: 'bg', slot: 'slot', slotWin: 'win', text: 'text', byeText: 'bye'
+    bg: 'bg', slot: 'slot', slotWin: 'winbox', lineWin: 'winline', text: 'text', border: 'border', byeText: 'bye'
   };
   for (const [key, domKey] of Object.entries(map)) {
     const inp = document.getElementById(`color-${domKey}`);
@@ -606,6 +775,11 @@ function applyColorsToUI(colors) {
     document.getElementById('range-opacity').value = pct;
     document.getElementById('opacity-val').textContent = `${pct}%`;
   }
+  const bw = colors.borderWidth !== undefined ? colors.borderWidth : 1.5;
+  const bwInput = document.getElementById('range-border-width');
+  const bwLabel = document.getElementById('border-width-val');
+  if (bwInput) bwInput.value = bw;
+  if (bwLabel) bwLabel.textContent = `${bw}px`;
 }
 
 // =============================================
@@ -618,6 +792,99 @@ function applyDisplayWidthToUI(displayWidth) {
   const val = dw.value || 1200;
   document.getElementById('range-display-width').value = val;
   document.getElementById('display-width-val').textContent = `${val}px`;
+}
+
+// =============================================
+// ページ背景UI反映
+// =============================================
+function applyPageBackgroundToUI(pageBackground) {
+  const pb = pageBackground || { color: '#0d0d1a', imageDataUrl: null };
+  const colorInput = document.getElementById('color-page-bg');
+  const colorLabel = document.getElementById('color-page-bg-label');
+  if (colorInput) colorInput.value = pb.color || '#0d0d1a';
+  if (colorLabel) colorLabel.textContent = pb.color || '#0d0d1a';
+
+  const preview = document.getElementById('page-bg-preview');
+  const removeBtn = document.getElementById('btn-remove-page-bg');
+  if (preview) {
+    if (pb.imageDataUrl) {
+      preview.style.backgroundImage = `url("${pb.imageDataUrl}")`;
+      preview.innerHTML = '';
+    } else {
+      preview.style.backgroundImage = 'none';
+      preview.innerHTML = '<span class="page-bg-preview-empty">未設定</span>';
+    }
+  }
+  if (removeBtn) {
+    removeBtn.style.display = pb.imageDataUrl ? '' : 'none';
+  }
+}
+
+// =============================================
+// ページ背景をトーナメントエリアに適用（引き伸ばし表示）
+// =============================================
+function applyPageBackgroundToArea(pageBackground) {
+  const pb = pageBackground || { color: '#0d0d1a', imageDataUrl: null };
+  const area = document.getElementById('tournament-area');
+  if (!area) return;
+  area.style.backgroundColor = pb.color || '#0d0d1a';
+  if (pb.imageDataUrl) {
+    area.style.backgroundImage = `url("${pb.imageDataUrl}")`;
+    area.style.backgroundSize = '100% 100%';
+    area.style.backgroundRepeat = 'no-repeat';
+    area.style.backgroundPosition = 'center';
+  } else {
+    area.style.backgroundImage = 'none';
+  }
+}
+
+// =============================================
+// ページ背景画像アップロード
+// =============================================
+function onPageBgFileSelected(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showToast('画像ファイルを選択してください', 'error');
+    e.target.value = '';
+    return;
+  }
+  if (file.size > 6 * 1024 * 1024) {
+    showToast('画像サイズが大きすぎます（6MB以下にしてください）', 'error');
+    e.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function (evt) {
+    const dataUrl = evt.target.result;
+    if (!appState.settings.pageBackground) {
+      appState.settings.pageBackground = { color: '#0d0d1a', imageDataUrl: null };
+    }
+    appState.settings.pageBackground.imageDataUrl = dataUrl;
+    applyPageBackgroundToUI(appState.settings.pageBackground);
+    applyPageBackgroundToArea(appState.settings.pageBackground);
+    saveState();
+    showToast('背景画像を設定しました', 'success');
+  };
+  reader.onerror = function () {
+    showToast('ファイルの読み込みに失敗しました', 'error');
+  };
+  reader.readAsDataURL(file);
+
+  e.target.value = '';
+}
+
+function onRemovePageBgImage() {
+  if (!appState.settings.pageBackground) {
+    appState.settings.pageBackground = { color: '#0d0d1a', imageDataUrl: null };
+  }
+  appState.settings.pageBackground.imageDataUrl = null;
+  applyPageBackgroundToUI(appState.settings.pageBackground);
+  applyPageBackgroundToArea(appState.settings.pageBackground);
+  saveState();
+  showToast('背景画像を削除しました');
 }
 
 // =============================================
