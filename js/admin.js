@@ -75,9 +75,17 @@ const PRESETS = {
 // =============================================
 // 初期化
 // =============================================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   loadFromStorage();
   bindEvents();
+
+  // 旧localStorage方式で保存されていたスナップショットがあれば、
+  // より容量の大きいIndexedDBへ1回だけ自動移行する
+  try {
+    await SnapshotDB.migrateFromLocalStorageIfNeeded();
+  } catch (e) {
+    console.warn('スナップショットの移行処理でエラーが発生しました', e);
+  }
   renderSnapshotList();
 
   if (appState.tournament) {
@@ -1144,38 +1152,20 @@ function showToast(msg, type = '') {
 }
 
 // =============================================
-// スナップショット保存・読込・削除（ブラウザのlocalStorage内で管理）
+// スナップショット保存・読込・削除（ブラウザのIndexedDB内で管理）
 // JSONファイルの書き出し/アップロードは行わず、このブラウザ内に
 // 複数のスナップショット（名前付きの状態保存）として保持する。
+// 背景画像・ロゴ画像などを含むとデータ量が大きくなるため、容量が
+// 限られるlocalStorageではなくIndexedDB（SnapshotDB）に保存する。
 // =============================================
-const SNAPSHOT_STORAGE_KEY = 'tournamentSnapshots';
 
-function loadSnapshots() {
-  try {
-    const raw = localStorage.getItem(SNAPSHOT_STORAGE_KEY);
-    const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveSnapshots(list) {
-  try {
-    localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(list));
-    return true;
-  } catch (e) {
-    // 容量超過（QuotaExceededError）など
-    return false;
-  }
-}
-
-function onSaveSnapshot() {
+async function onSaveSnapshot() {
   if (!appState.tournament) {
     showToast('保存するトーナメントデータがありません', 'error');
     return;
   }
 
+  const saveBtn = document.getElementById('btn-save-snapshot');
   const nameInput = document.getElementById('input-snapshot-name');
   const customName = nameInput ? nameInput.value.trim() : '';
   const label = customName || appState.settings.title || 'トーナメント';
@@ -1188,33 +1178,36 @@ function onSaveSnapshot() {
     settings: appState.settings
   };
 
-  const list = loadSnapshots();
-  list.unshift(snapshot);
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    await SnapshotDB.add(snapshot);
+    await SnapshotDB.trimToMax(SnapshotDB.MAX_SNAPSHOTS);
 
-  // 保存件数の上限（容量対策として最新20件まで）
-  const MAX_SNAPSHOTS = 20;
-  if (list.length > MAX_SNAPSHOTS) list.length = MAX_SNAPSHOTS;
-
-  const ok = saveSnapshots(list);
-  if (!ok) {
-    // 容量超過時は古いものを間引いて再試行
-    while (list.length > 1 && !saveSnapshots(list)) {
-      list.pop();
-    }
-    if (!saveSnapshots(list)) {
-      showToast('保存に失敗しました（ブラウザの保存容量が不足しています）', 'error');
-      return;
-    }
-    showToast('保存容量の都合で古いスナップショットを一部削除しました', '');
+    if (nameInput) nameInput.value = '';
+    await renderSnapshotList();
+    showToast('現在の状態を保存しました', 'success');
+  } catch (e) {
+    console.error('スナップショット保存エラー', e);
+    const isQuota = e && (e.name === 'QuotaExceededError' || /quota/i.test(e.message || ''));
+    showToast(
+      isQuota
+        ? '保存に失敗しました（ブラウザの保存容量が不足しています）'
+        : '保存に失敗しました',
+      'error'
+    );
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
   }
-
-  if (nameInput) nameInput.value = '';
-  renderSnapshotList();
-  showToast('現在の状態を保存しました', 'success');
 }
 
-function onLoadSnapshot(id) {
-  const list = loadSnapshots();
+async function onLoadSnapshot(id) {
+  let list;
+  try {
+    list = await SnapshotDB.getAll();
+  } catch (e) {
+    showToast('スナップショットの読込に失敗しました', 'error');
+    return;
+  }
   const snapshot = list.find(s => s.id === id);
   if (!snapshot) {
     showToast('スナップショットが見つかりませんでした', 'error');
@@ -1238,24 +1231,40 @@ function onLoadSnapshot(id) {
   showToast(`「${snapshot.name}」を読み込みました`, 'success');
 }
 
-function onDeleteSnapshot(id) {
-  const list = loadSnapshots();
+async function onDeleteSnapshot(id) {
+  let list;
+  try {
+    list = await SnapshotDB.getAll();
+  } catch (e) {
+    showToast('削除に失敗しました', 'error');
+    return;
+  }
   const snapshot = list.find(s => s.id === id);
   if (!snapshot) return;
   if (!confirm(`「${snapshot.name}」を削除します。よろしいですか？`)) return;
 
-  const filtered = list.filter(s => s.id !== id);
-  saveSnapshots(filtered);
-  renderSnapshotList();
-  showToast('削除しました');
+  try {
+    await SnapshotDB.remove(id);
+    await renderSnapshotList();
+    showToast('削除しました');
+  } catch (e) {
+    showToast('削除に失敗しました', 'error');
+  }
 }
 
-function renderSnapshotList() {
+async function renderSnapshotList() {
   const container = document.getElementById('snapshot-list');
   if (!container) return;
+
+  let list = [];
+  try {
+    list = await SnapshotDB.getAll();
+  } catch (e) {
+    console.warn('スナップショット一覧の取得に失敗しました', e);
+  }
+
   container.innerHTML = '';
 
-  const list = loadSnapshots();
   if (list.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'snapshot-empty-hint';
@@ -1286,14 +1295,14 @@ function renderSnapshotList() {
 
     const loadBtn = document.createElement('button');
     loadBtn.className = 'snapshot-btn';
-    loadBtn.title = '読込';
-    loadBtn.innerHTML = '<i class="fas fa-folder-open"></i>';
+    loadBtn.title = 'この状態を読み込む';
+    loadBtn.innerHTML = '<i class="fas fa-folder-open"></i> <span>読込</span>';
     loadBtn.addEventListener('click', () => onLoadSnapshot(snapshot.id));
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'snapshot-btn danger';
-    deleteBtn.title = '削除';
-    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+    deleteBtn.title = 'このスナップショットを削除';
+    deleteBtn.innerHTML = '<i class="fas fa-trash"></i> <span>削除</span>';
     deleteBtn.addEventListener('click', () => onDeleteSnapshot(snapshot.id));
 
     actions.appendChild(loadBtn);
