@@ -78,6 +78,7 @@ const PRESETS = {
 document.addEventListener('DOMContentLoaded', () => {
   loadFromStorage();
   bindEvents();
+  renderSnapshotList();
 
   if (appState.tournament) {
     restoreUI();
@@ -345,6 +346,10 @@ function bindEvents() {
   document.addEventListener('pointermove', onLogoPointerMove);
   document.addEventListener('pointerup', onLogoPointerUp);
   document.addEventListener('pointercancel', onLogoPointerUp);
+
+  // スナップショット保存・画像保存
+  document.getElementById('btn-save-snapshot').addEventListener('click', onSaveSnapshot);
+  document.getElementById('btn-save-image').addEventListener('click', onSaveImage);
 }
 
 // =============================================
@@ -1136,4 +1141,275 @@ function showToast(msg, type = '') {
   toast._timer = setTimeout(() => {
     toast.className = `toast${type ? ' ' + type : ''}`;
   }, 2800);
+}
+
+// =============================================
+// スナップショット保存・読込・削除（ブラウザのlocalStorage内で管理）
+// JSONファイルの書き出し/アップロードは行わず、このブラウザ内に
+// 複数のスナップショット（名前付きの状態保存）として保持する。
+// =============================================
+const SNAPSHOT_STORAGE_KEY = 'tournamentSnapshots';
+
+function loadSnapshots() {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_STORAGE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveSnapshots(list) {
+  try {
+    localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(list));
+    return true;
+  } catch (e) {
+    // 容量超過（QuotaExceededError）など
+    return false;
+  }
+}
+
+function onSaveSnapshot() {
+  if (!appState.tournament) {
+    showToast('保存するトーナメントデータがありません', 'error');
+    return;
+  }
+
+  const nameInput = document.getElementById('input-snapshot-name');
+  const customName = nameInput ? nameInput.value.trim() : '';
+  const label = customName || appState.settings.title || 'トーナメント';
+
+  const snapshot = {
+    id: `snap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    name: label,
+    savedAt: Date.now(),
+    tournament: appState.tournament,
+    settings: appState.settings
+  };
+
+  const list = loadSnapshots();
+  list.unshift(snapshot);
+
+  // 保存件数の上限（容量対策として最新20件まで）
+  const MAX_SNAPSHOTS = 20;
+  if (list.length > MAX_SNAPSHOTS) list.length = MAX_SNAPSHOTS;
+
+  const ok = saveSnapshots(list);
+  if (!ok) {
+    // 容量超過時は古いものを間引いて再試行
+    while (list.length > 1 && !saveSnapshots(list)) {
+      list.pop();
+    }
+    if (!saveSnapshots(list)) {
+      showToast('保存に失敗しました（ブラウザの保存容量が不足しています）', 'error');
+      return;
+    }
+    showToast('保存容量の都合で古いスナップショットを一部削除しました', '');
+  }
+
+  if (nameInput) nameInput.value = '';
+  renderSnapshotList();
+  showToast('現在の状態を保存しました', 'success');
+}
+
+function onLoadSnapshot(id) {
+  const list = loadSnapshots();
+  const snapshot = list.find(s => s.id === id);
+  if (!snapshot) {
+    showToast('スナップショットが見つかりませんでした', 'error');
+    return;
+  }
+
+  if (!confirm(`「${snapshot.name}」の状態を読み込みます。現在のトーナメント表・設定は上書きされます。よろしいですか？`)) {
+    return;
+  }
+
+  appState.tournament = snapshot.tournament;
+  appState.settings = { ...appState.settings, ...snapshot.settings };
+  if (!Array.isArray(appState.settings.logos)) appState.settings.logos = [];
+  if (!appState.settings.pageBackground) appState.settings.pageBackground = { color: '#0d0d1a', imageDataUrl: null };
+  if (appState.settings.showCategory === undefined) appState.settings.showCategory = true;
+  if (!appState.settings.nameFont) appState.settings.nameFont = "'Noto Sans JP', sans-serif";
+  if (appState.settings.nameBold === undefined) appState.settings.nameBold = false;
+
+  restoreUI();
+  saveState();
+  showToast(`「${snapshot.name}」を読み込みました`, 'success');
+}
+
+function onDeleteSnapshot(id) {
+  const list = loadSnapshots();
+  const snapshot = list.find(s => s.id === id);
+  if (!snapshot) return;
+  if (!confirm(`「${snapshot.name}」を削除します。よろしいですか？`)) return;
+
+  const filtered = list.filter(s => s.id !== id);
+  saveSnapshots(filtered);
+  renderSnapshotList();
+  showToast('削除しました');
+}
+
+function renderSnapshotList() {
+  const container = document.getElementById('snapshot-list');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const list = loadSnapshots();
+  if (list.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'snapshot-empty-hint';
+    empty.textContent = '保存済みのスナップショットはありません。';
+    container.appendChild(empty);
+    return;
+  }
+
+  list.forEach(snapshot => {
+    const item = document.createElement('div');
+    item.className = 'snapshot-item';
+
+    const info = document.createElement('div');
+    info.className = 'snapshot-item-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'snapshot-item-name';
+    nameEl.textContent = snapshot.name;
+    nameEl.title = snapshot.name;
+    const dateEl = document.createElement('div');
+    dateEl.className = 'snapshot-item-date';
+    const d = new Date(snapshot.savedAt);
+    dateEl.textContent = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    info.appendChild(nameEl);
+    info.appendChild(dateEl);
+
+    const actions = document.createElement('div');
+    actions.className = 'snapshot-item-actions';
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'snapshot-btn';
+    loadBtn.title = '読込';
+    loadBtn.innerHTML = '<i class="fas fa-folder-open"></i>';
+    loadBtn.addEventListener('click', () => onLoadSnapshot(snapshot.id));
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'snapshot-btn danger';
+    deleteBtn.title = '削除';
+    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+    deleteBtn.addEventListener('click', () => onDeleteSnapshot(snapshot.id));
+
+    actions.appendChild(loadBtn);
+    actions.appendChild(deleteBtn);
+
+    item.appendChild(info);
+    item.appendChild(actions);
+    container.appendChild(item);
+  });
+}
+
+// =============================================
+// トーナメント表を画像（PNG）として保存
+// ページ背景（色・背景画像）も含めて書き出す
+// =============================================
+function onSaveImage() {
+  if (!appState.tournament) {
+    showToast('保存するトーナメント表がありません', 'error');
+    return;
+  }
+
+  const svgEl = document.getElementById('tournament-svg');
+  const svgW = parseFloat(svgEl.getAttribute('width'));
+  const svgH = parseFloat(svgEl.getAttribute('height'));
+  if (!svgW || !svgH) {
+    showToast('画像の生成に失敗しました', 'error');
+    return;
+  }
+
+  // ブラケットの周囲に余白を付け、背景がきちんと見えるようにする
+  const PADDING = 40;
+  const canvasW = svgW + PADDING * 2;
+  const canvasH = svgH + PADDING * 2;
+  const pageBg = appState.settings.pageBackground || { color: '#0d0d1a', imageDataUrl: null };
+
+  // SVGをシリアライズしてdata URLに変換（フォントの外部リンクはそのままImageで読み込む）
+  const serializer = new XMLSerializer();
+  let svgString = serializer.serializeToString(svgEl);
+
+  // 名前空間が無い場合の保険
+  if (!svgString.match(/^<svg[^>]+xmlns=/)) {
+    svgString = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+  }
+
+  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  // 高解像度で書き出すための倍率（2倍でRetina相当）
+  const scale = 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasW * scale;
+  canvas.height = canvasH * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  function drawBracketAndFinish(bgImg) {
+    // 1. 背景色を全体に塗る
+    ctx.fillStyle = pageBg.color || '#0d0d1a';
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    // 2. 背景画像があれば、画面表示と同じく background-size:100% 100% 相当で
+    //    縦横比を保たずキャンバス全体に引き伸ばして描画する
+    if (bgImg) {
+      ctx.drawImage(bgImg, 0, 0, canvasW, canvasH);
+    }
+
+    // 3. 背景の上にブラケットSVGを重ねる
+    const svgImg = new Image();
+    svgImg.onload = function () {
+      ctx.drawImage(svgImg, PADDING, PADDING, svgW, svgH);
+      URL.revokeObjectURL(svgUrl);
+      finalizeAndDownload(canvas);
+    };
+    svgImg.onerror = function () {
+      URL.revokeObjectURL(svgUrl);
+      showToast('画像の生成に失敗しました（フォントや画像の読み込みに問題がある可能性があります）', 'error');
+    };
+    svgImg.src = svgUrl;
+  }
+
+  function finalizeAndDownload(canvas) {
+    canvas.toBlob(function (blob) {
+      if (!blob) {
+        showToast('画像の生成に失敗しました', 'error');
+        return;
+      }
+      const pngUrl = URL.createObjectURL(blob);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const safeTitle = (appState.settings.title || 'トーナメント').replace(/[\\/:*?"<>|]/g, '_');
+      const filename = `${safeTitle}_${dateStr}.png`;
+
+      const a = document.createElement('a');
+      a.href = pngUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(pngUrl);
+
+      showToast('トーナメント表を画像として保存しました', 'success');
+    }, 'image/png');
+  }
+
+  // 背景画像が設定されていれば先に読み込んでから合成する
+  if (pageBg.imageDataUrl) {
+    const bgImg = new Image();
+    bgImg.onload = function () {
+      drawBracketAndFinish(bgImg);
+    };
+    bgImg.onerror = function () {
+      // 背景画像の読み込みに失敗しても背景色だけで続行する
+      drawBracketAndFinish(null);
+    };
+    bgImg.src = pageBg.imageDataUrl;
+  } else {
+    drawBracketAndFinish(null);
+  }
 }

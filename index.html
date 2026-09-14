@@ -53,6 +53,27 @@
         </button>
       </section>
 
+      <!-- 保存・読み込み -->
+      <section class="panel-section" id="save-load-section">
+        <h2 class="section-title"><i class="fas fa-save"></i> 保存・読み込み</h2>
+
+        <div class="form-group">
+          <label for="input-snapshot-name">スナップショット名（任意）</label>
+          <input type="text" id="input-snapshot-name" placeholder="例：1回戦終了時点" maxlength="40" />
+        </div>
+        <button id="btn-save-snapshot" class="btn btn-secondary btn-full">
+          <i class="fas fa-camera"></i> 現在の状態を保存
+        </button>
+
+        <div id="snapshot-list" class="snapshot-list"></div>
+
+        <button id="btn-save-image" class="btn btn-accent btn-full mt-8">
+          <i class="fas fa-image"></i> トーナメント表を画像で保存
+        </button>
+
+        <p class="hint-text">「現在の状態を保存」で参加者名・カテゴリー・対戦進行状況・デザイン設定などをブラウザ内に保存できます（このブラウザ内のみ・複数保存可）。保存した状態は下のリストから「読込」でいつでも復元、不要なものは「削除」できます。「画像で保存」は現在のトーナメント表を背景も含めたPNG画像としてダウンロードします（トーナメント表を生成済みの場合のみ利用可能）。</p>
+      </section>
+
       <!-- 参加者名入力 -->
       <section class="panel-section" id="players-section" style="display:none">
         <h2 class="section-title"><i class="fas fa-users"></i> 参加者名</h2>
