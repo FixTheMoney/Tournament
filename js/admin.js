@@ -40,6 +40,7 @@ let appState = {
     showCategory: true,
     nameFont: "'Noto Sans JP', sans-serif",
     nameBold: false,
+    compactMode: false,
     logos: []
   },
   selectedMatch: null
@@ -114,6 +115,9 @@ function loadFromStorage() {
   if (appState.settings.nameBold === undefined) {
     appState.settings.nameBold = false;
   }
+  if (appState.settings.compactMode === undefined) {
+    appState.settings.compactMode = false;
+  }
 }
 
 function restoreUI() {
@@ -140,6 +144,10 @@ function restoreUI() {
   if (nameFontSelect) nameFontSelect.value = appState.settings.nameFont || "'Noto Sans JP', sans-serif";
   const nameBoldToggle = document.getElementById('toggle-name-bold');
   if (nameBoldToggle) nameBoldToggle.checked = !!appState.settings.nameBold;
+
+  // コンパクト表示トグルを復元
+  const compactModeToggle = document.getElementById('toggle-compact-mode');
+  if (compactModeToggle) compactModeToggle.checked = !!appState.settings.compactMode;
 
   // プレイヤーリストを復元
   buildPlayerNameList(appState.settings.numPlayers);
@@ -295,6 +303,17 @@ function bindEvents() {
       updateTournamentDisplay();
       saveState();
       showToast(this.checked ? '対戦者名を太字にしました' : '対戦者名を通常の太さに戻しました');
+    });
+  }
+
+  // コンパクト表示トグル（大規模トーナメント向け：2回戦以降は名前非表示で幅を圧縮）
+  const compactModeToggle = document.getElementById('toggle-compact-mode');
+  if (compactModeToggle) {
+    compactModeToggle.addEventListener('change', function () {
+      appState.settings.compactMode = this.checked;
+      updateTournamentDisplay();
+      saveState();
+      showToast(this.checked ? 'コンパクト表示をオンにしました' : 'コンパクト表示をオフにしました');
     });
   }
 
@@ -1225,6 +1244,7 @@ async function onLoadSnapshot(id) {
   if (appState.settings.showCategory === undefined) appState.settings.showCategory = true;
   if (!appState.settings.nameFont) appState.settings.nameFont = "'Noto Sans JP', sans-serif";
   if (appState.settings.nameBold === undefined) appState.settings.nameBold = false;
+  if (appState.settings.compactMode === undefined) appState.settings.compactMode = false;
 
   restoreUI();
   saveState();

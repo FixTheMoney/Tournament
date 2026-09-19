@@ -104,6 +104,14 @@
           <summary><i class="fas fa-sliders-h"></i> 詳細設定</summary>
           <div class="settings-collapse-body">
             <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="toggle-compact-mode" />
+                <span>コンパクト表示（大規模トーナメント向け）</span>
+              </label>
+              <p class="hint-text">オンにすると、1回戦・決勝・3位決定戦は対戦者名を表示する大きめの枠で表示し、<b>その間の2回戦〜準決勝などのラウンドは対戦者名を表示しない小さな枠</b>にして、勝敗を示す色と接続線でつなぎます（小さな枠もクリックして勝者選択が可能）。枠同士の間隔も詰めているため、全体の横幅を大きく抑えられ、参加人数が多い大会に便利です。</p>
+            </div>
+
+            <div class="form-group divider-top">
               <label>背景色</label>
               <div class="color-row">
                 <input type="color" id="color-bg" value="#000000" />

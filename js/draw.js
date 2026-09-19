@@ -11,6 +11,9 @@
 // =============================================
 const SLOT_W       = 190;  // プレイヤー枠の幅
 const SLOT_H       = 58;   // プレイヤー枠の高さ（従来比 約+25%。名前の視認性向上のため）
+const SLOT_W_COMPACT_NAMED = 220;  // コンパクト表示: 名前を表示する枠（1回戦・決勝・3位決定戦）の幅（中間ラウンドを小さくする分、通常より大きくできる）
+const SLOT_W_COMPACT_MINI  = 26;   // コンパクト表示: 中間ラウンド（2回戦〜準決勝など）用の小さな枠幅。名前は表示しないが、勝敗を示す色とクリック可能な枠として視認できる最小限のサイズ
+const ROUND_GAP_COMPACT_LINE = 32; // コンパクト表示: 小さな枠同士の間隔（間隔を詰めて接続線の連続感を高めるため、通常より狭くする）
 const PAIR_GAP     = 8;    // 1試合の2枠の隙間
 const MATCH_GAP    = 28;   // 試合と試合の間
 const ROUND_GAP    = 64;   // ラウンド間の水平間隔
@@ -75,8 +78,37 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
     bronze:      '#c08a4e',
     showCategory: settings.showCategory !== false,
     nameFont:    settings.nameFont || "'Noto Sans JP', sans-serif",
-    nameBold:    !!settings.nameBold
+    nameBold:    !!settings.nameBold,
+    compactMode: !!settings.compactMode
   };
+
+  // =============================================
+  // コンパクト表示（ラウンド別の枠幅）
+  // OFF: 全ラウンド共通で SLOT_W を使用（従来通り）
+  // ON : ラウンド0（1回戦）・決勝 = 名前ありの大きめの枠（3位決定戦と同じ扱い）
+  //      それ以外の中間ラウンド（2回戦〜準決勝など）= 名前は表示しない小さな枠
+  //      （色と枠線でクリック位置がわかる程度のミニサイズにして、隣接ギャップも
+  //      狭めることでブラケット全体を圧縮する）
+  // =============================================
+  function colWidth(r) {
+    if (!C.compactMode) return SLOT_W;
+    if (r === 0 || r === numRounds - 1) return SLOT_W_COMPACT_NAMED;
+    return SLOT_W_COMPACT_MINI;
+  }
+  function colGap(r) {
+    // r はこのギャップの左側のカレムインデリズ。
+    // カレム（r）と次のカレム（r+1）の両方が枠非表示（線のみ）の場合は、
+    // 間隔をより狭めて接続線を連続して見せる
+    if (C.compactMode && r >= 1) return ROUND_GAP_COMPACT_LINE;
+    return ROUND_GAP;
+  }
+  function sumCols(fromInclusive, toExclusive) {
+    let total = 0;
+    for (let i = fromInclusive; i < toExclusive; i++) {
+      total += colWidth(i) + colGap(i);
+    }
+    return total;
+  }
 
   // =============================================
   // ロゴ・画像の準備（自由配置：ドラッグ&リサイズ対応）
@@ -98,13 +130,13 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
   // =============================================
   const xCenter = numRounds === 1
     ? MARGIN_LEFT
-    : MARGIN_LEFT + (numRounds - 1) * (SLOT_W + ROUND_GAP);
+    : MARGIN_LEFT + sumCols(0, numRounds - 1);
 
-  const xLeft  = (r) => MARGIN_LEFT + r * (SLOT_W + ROUND_GAP);
-  const xRight = (r) => xCenter + (SLOT_W + ROUND_GAP) + (numRounds - 2 - r) * (SLOT_W + ROUND_GAP);
+  const xLeft  = (r) => MARGIN_LEFT + sumCols(0, r);
+  const xRight = (r) => xCenter + sumCols(r + 1, numRounds);
 
   const xRightOuter = numRounds >= 2 ? xRight(0) : xCenter;
-  let svgWidth = Math.max(xRightOuter + SLOT_W + MARGIN_RIGHT, CHAMP_BANNER_W + MARGIN_LEFT + MARGIN_RIGHT + 200);
+  let svgWidth = Math.max(xRightOuter + colWidth(0) + MARGIN_RIGHT, CHAMP_BANNER_W + MARGIN_LEFT + MARGIN_RIGHT + 200);
 
   // =============================================
   // 垂直レイアウト計算
@@ -223,11 +255,11 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
   if (numRounds >= 2) {
     for (let r = 0; r <= numRounds - 2; r++) {
       const label = getRoundLabel(r, numRounds);
-      addLabel(xLeft(r) + SLOT_W / 2, label);
-      addLabel(xRight(r) + SLOT_W / 2, label);
+      addLabel(xLeft(r) + colWidth(r) / 2, label);
+      addLabel(xRight(r) + colWidth(r) / 2, label);
     }
   }
-  addLabel(xCenter + SLOT_W / 2, '決勝');
+  addLabel(xCenter + colWidth(numRounds - 1) / 2, '決勝');
 
   // =============================================
   // 優勝者バナー（ラウンドラベル行の下・中央、優勝者決定時のみ表示）
@@ -265,10 +297,12 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
   // =============================================
   const matchX = {};
   const matchY = {};
+  const matchW = {};
   const matchSide = {};
 
   matchX[finalId] = xCenter;
   matchY[finalId] = finalYAbs;
+  matchW[finalId] = colWidth(numRounds - 1);
   matchSide[finalId] = 'final';
 
   if (numRounds >= 2) {
@@ -279,15 +313,18 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
       const half = ids.length / 2;
       const leftIds  = ids.slice(0, half);
       const rightIds = ids.slice(half);
+      const w = colWidth(r);
 
       leftIds.forEach((id, li) => {
         matchY[id] = BRACKET_TOP + li * blockH + blockH / 2;
         matchX[id] = xLeft(r);
+        matchW[id] = w;
         matchSide[id] = 'left';
       });
       rightIds.forEach((id, li) => {
         matchY[id] = BRACKET_TOP + li * blockH + blockH / 2;
         matchX[id] = xRight(r);
+        matchW[id] = w;
         matchSide[id] = 'right';
       });
     }
@@ -308,6 +345,30 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
   }
 
   // =============================================
+  // コンパクト表示: この試合の枠自体を描画するかどうかを判定
+  // コンパクト表示ON時は、名前ありの大きな枠か、名前なしの小さな枠かの違いはあれど、
+  // すべてのラウンドで何らかの視認・クリック可能な枠を描画する（枠を完全に消して
+  // 接続線だけにはしない。クリック位置がわかりにくくなるため）
+  // =============================================
+  function computeShowBox(m) {
+    return true;
+  }
+
+  // =============================================
+  // コンパクト表示: このスロットの対戦者名を表示するかどうかを判定
+  // ・OFF（通常表示）の場合は常にtrue
+  // ・3位決定戦は常にtrue（単発の対戦で幅への影響が小さいため）
+  // ・1回戦（ラウンド0）・決勝（最終ラウンド）は常にtrue（名前ありの大きな枠）
+  // ・それ以外の中間ラウンド（2回戦〜準決勝など）はfalse（名前は表示せず、
+  //   小さな枠の色と接続線のみで勝敗を示す）
+  // =============================================
+  function computeShowName(m) {
+    if (!C.compactMode) return true;
+    if (m.isThirdPlace) return true;
+    return m.roundIndex === 0 || m.roundIndex === numRounds - 1;
+  }
+
+  // =============================================
   // 接続線（子試合 → 親試合）
   // =============================================
   for (const mid in tournament.matches) {
@@ -320,14 +381,14 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
     const parentSide = matchSide[parentId];
     if (matchX[parentId] === undefined) continue;
 
-    const outX = childSide === 'left' ? matchX[mid] + SLOT_W : matchX[mid];
+    const outX = childSide === 'left' ? matchX[mid] + matchW[mid] : matchX[mid];
     let inX;
     if (parentSide === 'final') {
-      inX = childSide === 'left' ? matchX[parentId] : matchX[parentId] + SLOT_W;
+      inX = childSide === 'left' ? matchX[parentId] : matchX[parentId] + matchW[parentId];
     } else if (parentSide === 'left') {
       inX = matchX[parentId];
     } else {
-      inX = matchX[parentId] + SLOT_W;
+      inX = matchX[parentId] + matchW[parentId];
     }
 
     const childY  = matchY[mid];
@@ -340,6 +401,9 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
   // =============================================
   // 3位決定戦の接続線（準決勝敗者 → 3位決定戦、破線）
   // =============================================
+  // 3位決定戦は常に枠・名前を表示するため、決勝と同じ「名前あり」の幅
+  // （colWidth(numRounds-1)。コンパクト表示時はSLOT_W_COMPACT_NAMED）を使う
+  const tpWidth = colWidth(numRounds - 1);
   if (hasThirdPlace) {
     const tp = tournament.matches[tournament.thirdPlaceMatchId];
     const [semiLeftId, semiRightId] = tp.semiIds;
@@ -353,12 +417,12 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
     const tpLineColor = isWin ? C.bronze : C.line;
 
     if (matchX[semiLeftId] !== undefined) {
-      const outX = matchX[semiLeftId] + SLOT_W; // 左ブロックなので右端から出る
+      const outX = matchX[semiLeftId] + matchW[semiLeftId]; // 左ブロックなので右端から出る
       drawLine(svgEl, outX, matchY[semiLeftId], tpX, tpSlot1Cy, tpLineColor, false, true);
     }
     if (matchX[semiRightId] !== undefined) {
       const outX = matchX[semiRightId]; // 右ブロックなので左端から出る
-      drawLine(svgEl, outX, matchY[semiRightId], tpX + SLOT_W, tpSlot2Cy, tpLineColor, false, true);
+      drawLine(svgEl, outX, matchY[semiRightId], tpX + tpWidth, tpSlot2Cy, tpLineColor, false, true);
     }
   }
 
@@ -374,9 +438,12 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
     const cy = matchY[mid];
     const y1 = cy - matchH / 2;
     const y2 = cy + PAIR_GAP / 2;
+    const w  = matchW[mid];
 
-    drawSlot(svgEl, m, 'player1', x, y1, SLOT_W, SLOT_H, C, isAdmin);
-    drawSlot(svgEl, m, 'player2', x, y2, SLOT_W, SLOT_H, C, isAdmin);
+    const showBox  = computeShowBox(m);
+    const showName = computeShowName(m);
+    drawSlot(svgEl, m, 'player1', x, y1, w, SLOT_H, C, isAdmin, showName, showBox);
+    drawSlot(svgEl, m, 'player2', x, y2, w, SLOT_H, C, isAdmin, showName, showBox);
   }
 
   // =============================================
@@ -387,7 +454,7 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
     const tpX = xCenter;
 
     const lbl = ce('text', {
-      x: tpX + SLOT_W / 2, y: thirdLabelYAbs,
+      x: tpX + tpWidth / 2, y: thirdLabelYAbs,
       'text-anchor': 'middle', 'dominant-baseline': 'middle',
       fill: C.bronze,
       'font-size': 14, 'font-weight': 'bold',
@@ -400,8 +467,8 @@ function drawTournament(svgEl, tournament, settings = {}, isAdmin = false) {
     const y1 = thirdYAbs - matchH / 2;
     const y2 = thirdYAbs + PAIR_GAP / 2;
 
-    drawSlot(svgEl, tp, 'player1', tpX, y1, SLOT_W, SLOT_H, { ...C, slotWin: C.bronze }, isAdmin);
-    drawSlot(svgEl, tp, 'player2', tpX, y2, SLOT_W, SLOT_H, { ...C, slotWin: C.bronze }, isAdmin);
+    drawSlot(svgEl, tp, 'player1', tpX, y1, tpWidth, SLOT_H, { ...C, slotWin: C.bronze }, isAdmin, true, true);
+    drawSlot(svgEl, tp, 'player2', tpX, y2, tpWidth, SLOT_H, { ...C, slotWin: C.bronze }, isAdmin, true, true);
   }
 
   // =============================================
@@ -462,7 +529,7 @@ function drawLogoImage(svgEl, logo, isAdmin) {
 // =============================================
 // プレイヤー枠描画
 // =============================================
-function drawSlot(svgEl, match, slot, x, y, w, h, C, isAdmin) {
+function drawSlot(svgEl, match, slot, x, y, w, h, C, isAdmin, showName = true, showBox = true) {
   const player = match[slot];
   if (!player) return;
 
@@ -498,6 +565,10 @@ function drawSlot(svgEl, match, slot, x, y, w, h, C, isAdmin) {
     const dot = ce('circle', { cx: x + 14, cy: y + h / 2, r: 5, fill: '#fff' });
     svgEl.appendChild(dot);
   }
+
+  // コンパクト表示: 名前を表示しないスロット（2回戦）は、枠の色（勝者強調）と
+  // 接続線の色のみで勝敗を示し、テキストは一切描画しない
+  if (!showName) return;
 
   const tx = x + (isWinner ? 28 : 12);
   const padRight = 12;
